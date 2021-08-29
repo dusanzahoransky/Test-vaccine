@@ -2,9 +2,9 @@
   "name": "test-vaccine",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "reschedule.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node reschedule.js"
   },
   "author": "",
   "license": "ISC",
