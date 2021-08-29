@@ -17,33 +17,33 @@ async function getFirstAvailableAppointment(page) {
         .find(d => d.noOfSlots > 0 && d.available)
 }
 
-async function getFirstAppointmentButtonAsync(container) {
-    return await container.$(".btn.appointmentSlot")
+async function getFirstAppointmentButton(container) {
+    return container.$(".btn.appointmentSlot")
 }
 
-async function submitAsync(page) {
+async function submit(page) {
     const button = await page.$("#submitBtn")
     await button.click()
-    await ringBellAsync(page)
+    await ringBell(page)
 }
 
-async function ringBellAsync(page) {
+async function ringBell(page) {
     await page.evaluate(async () => {
         const audio = new Audio(
             "https://freesound.org/data/previews/66/66136_606715-lq.mp3"
         )
 
-        async function notifyAsync() {
-            // while (true) {
+        async function notify() {
+            while (true) {
                 await audio.play()
-            // }
+            }
         }
 
-        await notifyAsync()
+        await notify()
     })
 }
 
-async function tryToGetAppointmentFromCalendarAsync(secondDosisCalendar, page) {
+async function tryToGetAppointmentFromCalendar(secondDosisCalendar, page) {
     const buttonsDays = await secondDosisCalendar.$$(
         'button[ng-if="day"]:not([disabled])[aria-pressed="false"]'
     )
@@ -56,84 +56,178 @@ async function tryToGetAppointmentFromCalendarAsync(secondDosisCalendar, page) {
     }
 }
 
-async function findAppointment(page, bookAfterDate, bookBeforeDate) {
-    const firstAppointment = await getFirstAvailableAppointment(page)
+async function selectLocationAndSite(page, location) {
+    const locationDropdown = await page.$$(".vm-form-field")
+    const cityFormField = locationDropdown[1]
+    if(cityFormField) {
+        await cityFormField.click() //click to the form
+        await sleep(500)   //takes a bit time till the selects render
+    }
 
-    if (firstAppointment) {
-        const startDate = new Date(firstAppointment.start_date)
+    await page.select("select[Title='City']", `string:${location}`)
 
-        if (startDate > bookAfterDate && startDate < bookBeforeDate) {
-            const appointmentButton = await getFirstAppointmentButtonAsync(page)
-            await appointmentButton.click()
-            let secondDosis = await getFirstAvailableAppointment(page)
-            const appointmentContainers = await page.$$(
-                ".appointmentContentContainer"
+    const siteSelectOptions = await page.$$("select[Title='Choose a site to see available times'] option")
+    if(siteSelectOptions.length > 1) {  //the first option is -- None --
+        const firstSiteOption = await page.evaluate(option => option.value, siteSelectOptions[1])
+        await page.select("select[Title='Choose a site to see available times']", firstSiteOption)
+        return true
+    }
+    return false
+}
+
+async function selectSecondDoseLocationAndSite(page, location) {
+    const locationDropdown = await page.$$(".vm-form-field")
+    const cityFormField = locationDropdown[1]
+    await cityFormField.click() //click to the form
+
+    //TODO selector for the second City dropdown
+    await page.select("select[Title='City']", `string:${location}`)
+
+    const siteSelectOptions = await page.$$("select[Title='Choose a site to see available times'] option")
+    if(siteSelectOptions.length > 1) {  //the first option is -- None --
+        const firstSiteOption = await page.evaluate(option => option.value, siteSelectOptions[1])
+        await page.select("select[Title='Choose a site to see available times']", firstSiteOption)
+        return true
+    }
+
+    return false
+}
+
+async function searchAllLocations(page, bookFrom, bookTo, locations) {
+    for(const location of locations) {
+        try {
+            const isLocationAvailable = await selectLocationAndSite(page, location);
+            if(isLocationAvailable) {
+                const appointmentFound = await findAppointment(page, bookFrom, bookTo, location, locations)
+                if (appointmentFound) {
+                    return true
+                }
+            }
+        } catch (e){
+            console.log(`Failed to check location ${location} ${e}`)
+        }
+    }
+    return false
+}
+
+async function findSecondDosisAppointment(page) {
+    let secondDosis = await getFirstAvailableAppointment(page)
+    const appointmentContainers = await page.$$(
+        ".appointmentContentContainer"
+    )
+    const secondDosisAppointmentContainer = appointmentContainers[1]
+    if (secondDosis) {
+        const secondButton = await getFirstAppointmentButton(
+            secondDosisAppointmentContainer
+        )
+        await secondButton.click()
+        await submit(page)
+        return true
+    } else {
+        const calendarContainers = await page.$$(".calendarContainer")
+        const secondDosisCalendar = calendarContainers[1]
+        secondDosis = await tryToGetAppointmentFromCalendar(
+            secondDosisCalendar,
+            page
+        )
+        if (secondDosis) {
+            const secondButton = await getFirstAppointmentButton(
+                secondDosisAppointmentContainer
             )
-            const secondDosisAppointmentContainer = appointmentContainers[1]
+            await secondButton.click()
+            await submit(page)
+            return true
+        }
+        let secondPageButton = await secondDosisCalendar.$(
+            "button#goNext:not([disabled])"
+        )
+        secondPageButton =
+            secondPageButton ||
+            (await secondDosisCalendar.$(
+                "button#goPrevious:not([disabled])"
+            ))
+
+        if (secondPageButton) {
+            await secondPageButton.click()
+            secondDosis = await getFirstAvailableAppointment(page)
             if (secondDosis) {
-                const secondButton = await getFirstAppointmentButtonAsync(
+                const secondButton = await getFirstAppointmentButton(
                     secondDosisAppointmentContainer
                 )
                 await secondButton.click()
-                await submitAsync(page)
-            } else {
-                const calendarContainers = await page.$$(".calendarContainer")
-                const secondDosisCalendar = calendarContainers[1]
-                secondDosis = await tryToGetAppointmentFromCalendarAsync(
-                    secondDosisCalendar,
-                    page
+                await submit(page)
+                return true
+            }
+            secondDosis = await tryToGetAppointmentFromCalendar(
+                secondDosisCalendar,
+                page
+            )
+            if (secondDosis) {
+                const secondButton = await getFirstAppointmentButton(
+                    secondDosisAppointmentContainer
                 )
-                if (secondDosis) {
-                    const secondButton = await getFirstAppointmentButtonAsync(
-                        secondDosisAppointmentContainer
-                    )
-                    await secondButton.click()
-                    await submitAsync(page)
-                }
-                let secondPageButton = await secondDosisCalendar.$(
-                    "button#goNext:not([disabled])"
-                )
-                secondPageButton =
-                    secondPageButton ||
-                    (await secondDosisCalendar.$(
-                        "button#goPrevious:not([disabled])"
-                    ))
-
-                if (secondPageButton) {
-                    await secondPageButton.click()
-                    secondDosis = await getFirstAvailableAppointment(page)
-                    if (secondDosis) {
-                        const secondButton = await getFirstAppointmentButtonAsync(
-                            secondDosisAppointmentContainer
-                        )
-                        await secondButton.click()
-                        await submitAsync(page)
-                    }
-                    secondDosis = await tryToGetAppointmentFromCalendarAsync(
-                        secondDosisCalendar,
-                        page
-                    )
-                    if (secondDosis) {
-                        const secondButton = await getFirstAppointmentButtonAsync(
-                            secondDosisAppointmentContainer
-                        )
-                        await secondButton.click()
-                        await submitAsync(page)
-                    }
-                }
-                await sleep(30000)
+                await secondButton.click()
+                await submit(page)
+                return true
             }
         }
     }
 }
 
-async function schedule(bookAfter, bookBefore, taskId, nswhvamCookiePath) {
+async function findAppointment(page, bookFrom, bookTo, preferredLocation, locations){
+    const firstAppointment = await getFirstAvailableAppointment(page)
+
+    if (!firstAppointment) {
+        return false
+    }
+    const startDate = new Date(firstAppointment.start_date)
+
+    if (startDate < bookFrom || startDate > bookTo) {
+        return false
+    }
+
+    const appointmentButton = await getFirstAppointmentButton(page)
+    await appointmentButton.click()
+
+    //check the same location for the second dosis first
+    let secondDosisBooked = await findSecondDosisAppointment(page);
+    if(secondDosisBooked){
+        return true
+    }
+
+    //TODO finish the second city selector to enable searching for all location combination
+    // const isLocationAvailable = await selectSecondDoseLocationAndSite(page, preferredLocation);
+    //
+    // if(isLocationAvailable) {
+    //     let secondDosisBooked = await findSecondDosisAppointment(page);
+    //
+    //     if(secondDosisBooked){
+    //         return true
+    //     }
+    //
+    //     //try other locations
+    //     const remainingLocations = locations.filter(location => location !== preferredLocation);
+    //     for(const location of remainingLocations){
+    //         const isLocationAvailable = await selectSecondDoseLocationAndSite(page, preferredLocation);
+    //
+    //         if(isLocationAvailable) {
+    //             secondDosisBooked = await findSecondDosisAppointment(page);
+    //
+    //             if(secondDosisBooked){
+    //                 return true
+    //             }
+    //         }
+    //     }
+    // }
+}
+
+async function schedule(bookAfter, bookBefore, taskId, nswhvamCookiePath, locations) {
     const browser = await puppeteer.launch({
         headless: false,
         ignoreDefaultArgs: ["--mute-audio"],
         args: ["--autoplay-policy=no-user-gesture-required"],
         defaultViewport: null,
-        slowMo: 20,
+        slowMo: 200,
     })
     const rescheduleUrl = `https://nswhvam.health.nsw.gov.au/vam?id=reschedule_vaccination&taskId=${taskId}`
 
@@ -142,16 +236,14 @@ async function schedule(bookAfter, bookBefore, taskId, nswhvamCookiePath) {
     await page.setCookie(...cookies)
     await page.goto(rescheduleUrl)
 
-    let appointmentFound = false
-    const bookAfterDate = new Date(bookBefore)
+    const bookAfterDate = new Date(bookAfter)
     const bookBeforeDate = new Date(bookBefore)
 
-    while (!appointmentFound) {
-
+    let appointmentFound
+    do {
         try {
-            await findAppointment(page, bookAfterDate, bookBeforeDate);
-
-            await sleep(5000)
+            appointmentFound = await searchAllLocations(page, bookAfterDate, bookBeforeDate, locations)
+            await sleep(2000)
             await page.reload()
         } catch (e) {
             if (e instanceof puppeteer.errors.TimeoutError) {
@@ -160,10 +252,17 @@ async function schedule(bookAfter, bookBefore, taskId, nswhvamCookiePath) {
                 throw e
             }
         }
-    }
+    } while (!appointmentFound)
 
+    await sleep(30000)
     await browser.close()
 }
 
-schedule('Aug 31 2021', 'Sep 20 2021', 'b8e6f0011b1e3810a74ccbb9274bcb19', './nswhvam.health.nsw.gov.au.cookies.json')
+const availableCloseLocations = ['Darlinghurst', 'Macquarie Fields', 'Sydney Olympic Park']
+const closeLocations = ['Randwick', 'Darlinghurst', 'Sydney Olympic Park']
+const allSydneyLocations = ['Randwick', 'Darlinghurst', 'Sydney Olympic Park', 'Macquarie Fields', 'Westmead', 'Penrith', 'Prairiewood', 'South Western Sydney', 'Western Sydney']
+
+schedule('Aug 30 2021', 'Sep 14 2021', 'b8e6f0011b1e3810a74ccbb9274bcb19', './nswhvam.health.nsw.gov.au.cookies.json',
+    availableCloseLocations
+)
 // schedule('Aug 31 2021', 'Sep 30 2021', 'cc6bf4451b9e3810a74ccbb9274bcb74', './nswhvam.health.nsw.gov.au.cookies-liz.json')
