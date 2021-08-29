@@ -22,5 +22,5 @@ pnpm-debug.log*
 *.sw?
 
 *.iml
-./nswhvam.health.nsw.gov.au.cookies.json
-./nswhvam.health.nsw.gov.au.cookies-liz.json
+/nswhvam.health.nsw.gov.au.cookies.json
+/nswhvam.health.nsw.gov.au.cookies-liz.json
