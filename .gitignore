@@ -20,3 +20,7 @@ pnpm-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+*.iml
+./nswhvam.health.nsw.gov.au.cookies.json
+./nswhvam.health.nsw.gov.au.cookies-liz.json
