@@ -56,58 +56,26 @@ async function tryToGetAppointmentFromCalendar(secondDosisCalendar, page) {
     }
 }
 
-async function selectLocationAndSite(page, location) {
+async function setLocation(page, location) {
     const locationDropdown = await page.$$(".vm-form-field")
-    const cityFormField = locationDropdown[1]
-    if(cityFormField) {
-        await cityFormField.click() //click to the form
-        await sleep(500)   //takes a bit time till the selects render
-    }
-
-    await page.select("select[Title='City']", `string:${location}`)
-
-    const siteSelectOptions = await page.$$("select[Title='Choose a site to see available times'] option")
-    if(siteSelectOptions.length > 1) {  //the first option is -- None --
-        const firstSiteOption = await page.evaluate(option => option.value, siteSelectOptions[1])
-        await page.select("select[Title='Choose a site to see available times']", firstSiteOption)
-        return true
-    }
-    return false
-}
-
-async function selectSecondDoseLocationAndSite(page, location) {
-    const locationDropdown = await page.$$(".vm-form-field")
-    const cityFormField = locationDropdown[1]
+    const cityFormField = locationDropdown[5]
     await cityFormField.click() //click to the form
 
-    //TODO selector for the second City dropdown
-    await page.select("select[Title='City']", `string:${location}`)
+    await page.select("select[id='city_805ed1aadbc8f01099e4fde1f39619e8']", `string:${location}`)
 
-    const siteSelectOptions = await page.$$("select[Title='Choose a site to see available times'] option")
+    const siteSelectOptions = await page.$$("select[id='preferred_center_805ed1aadbc8f01099e4fde1f39619e8'] option")
     if(siteSelectOptions.length > 1) {  //the first option is -- None --
         const firstSiteOption = await page.evaluate(option => option.value, siteSelectOptions[1])
-        await page.select("select[Title='Choose a site to see available times']", firstSiteOption)
+        await page.select("select[id='preferred_center_805ed1aadbc8f01099e4fde1f39619e8']", firstSiteOption)
         return true
     }
 
     return false
 }
 
-async function searchAllLocations(page, bookFrom, bookTo, locations) {
-    for(const location of locations) {
-        try {
-            const isLocationAvailable = await selectLocationAndSite(page, location);
-            if(isLocationAvailable) {
-                const appointmentFound = await findAppointment(page, bookFrom, bookTo, location, locations)
-                if (appointmentFound) {
-                    return true
-                }
-            }
-        } catch (e){
-            console.log(`Failed to check location ${location} ${e}`)
-        }
-    }
-    return false
+async function findAtLocation(page, bookFrom, bookTo, location) {
+    // await setLocation(page, location)
+    return await findAppointment(page, bookFrom, bookTo, location)
 }
 
 async function findSecondDosisAppointment(page) {
@@ -174,7 +142,7 @@ async function findSecondDosisAppointment(page) {
     }
 }
 
-async function findAppointment(page, bookFrom, bookTo, preferredLocation, locations){
+async function findAppointment(page, bookFrom, bookTo, location){
     const firstAppointment = await getFirstAvailableAppointment(page)
 
     if (!firstAppointment) {
@@ -189,39 +157,16 @@ async function findAppointment(page, bookFrom, bookTo, preferredLocation, locati
     const appointmentButton = await getFirstAppointmentButton(page)
     await appointmentButton.click()
 
+    await setLocation(page, location)
+
     //check the same location for the second dosis first
     let secondDosisBooked = await findSecondDosisAppointment(page);
     if(secondDosisBooked){
         return true
     }
-
-    //TODO finish the second city selector to enable searching for all location combination
-    // const isLocationAvailable = await selectSecondDoseLocationAndSite(page, preferredLocation);
-    //
-    // if(isLocationAvailable) {
-    //     let secondDosisBooked = await findSecondDosisAppointment(page);
-    //
-    //     if(secondDosisBooked){
-    //         return true
-    //     }
-    //
-    //     //try other locations
-    //     const remainingLocations = locations.filter(location => location !== preferredLocation);
-    //     for(const location of remainingLocations){
-    //         const isLocationAvailable = await selectSecondDoseLocationAndSite(page, preferredLocation);
-    //
-    //         if(isLocationAvailable) {
-    //             secondDosisBooked = await findSecondDosisAppointment(page);
-    //
-    //             if(secondDosisBooked){
-    //                 return true
-    //             }
-    //         }
-    //     }
-    // }
 }
 
-async function schedule(bookAfter, bookBefore, taskId, nswhvamCookiePath, locations) {
+async function schedule(bookAfter, bookBefore, taskId, nswhvamCookiePath, location) {
     const browser = await puppeteer.launch({
         headless: false,
         ignoreDefaultArgs: ["--mute-audio"],
@@ -242,8 +187,8 @@ async function schedule(bookAfter, bookBefore, taskId, nswhvamCookiePath, locati
     let appointmentFound
     do {
         try {
-            appointmentFound = await searchAllLocations(page, bookAfterDate, bookBeforeDate, locations)
-            await sleep(2000)
+            appointmentFound = await findAtLocation(page, bookAfterDate, bookBeforeDate, location)
+            await sleep(5000)
             await page.reload()
         } catch (e) {
             if (e instanceof puppeteer.errors.TimeoutError) {
@@ -258,11 +203,10 @@ async function schedule(bookAfter, bookBefore, taskId, nswhvamCookiePath, locati
     await browser.close()
 }
 
-const availableCloseLocations = ['Darlinghurst', 'Macquarie Fields', 'Sydney Olympic Park']
 const closeLocations = ['Randwick', 'Darlinghurst', 'Sydney Olympic Park']
 const allSydneyLocations = ['Randwick', 'Darlinghurst', 'Sydney Olympic Park', 'Macquarie Fields', 'Westmead', 'Penrith', 'Prairiewood', 'South Western Sydney', 'Western Sydney']
 
 schedule('Aug 30 2021', 'Sep 14 2021', 'b8e6f0011b1e3810a74ccbb9274bcb19', './nswhvam.health.nsw.gov.au.cookies.json',
-    availableCloseLocations
+    'Sydney Olympic Park'
 )
 // schedule('Aug 31 2021', 'Sep 30 2021', 'cc6bf4451b9e3810a74ccbb9274bcb74', './nswhvam.health.nsw.gov.au.cookies-liz.json')
