@@ -60,10 +60,8 @@ async function selectLocationAndSite(page, location) {
     try{
         const locationDropdown = await page.$$(".vm-form-field")
         const cityFormField = locationDropdown[1]
-        if(cityFormField) {
-            await cityFormField.click() //click to the form
-            await sleep(200)   //takes a bit time till the selects render
-        }
+
+        await cityFormField.click() //click to the form
 
         await page.select("select[id='city_c44edd6adbc8f01099e4fde1f39619d1'", `string:${location}`)
 
@@ -89,10 +87,9 @@ async function selectSecondDoseLocationAndSite(page, location) {
     try{
         const locationDropdown = await page.$$(".vm-form-field")
         const cityFormField = locationDropdown[5]
-        if(cityFormField) {
-            await cityFormField.click() //click to the form
-            await sleep(200)   //takes a bit time till the selects render
-        }
+
+        await cityFormField.click() //click to the form
+        await sleep(200)   //takes a bit time till the selects render
 
         await page.select("select[id='city_805ed1aadbc8f01099e4fde1f39619e8']", `string:${location}`)
 
@@ -213,7 +210,7 @@ async function schedule(bookAfter, bookBefore, taskId, nswhvamCookiePath, locati
         ignoreDefaultArgs: ["--mute-audio"],
         args: ["--autoplay-policy=no-user-gesture-required"],
         defaultViewport: null,
-        slowMo: 120,
+        slowMo: 200,
     })
     const rescheduleUrl = `https://nswhvam.health.nsw.gov.au/vam?id=reschedule_vaccination&taskId=${taskId}`
 
