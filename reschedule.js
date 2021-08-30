@@ -57,20 +57,25 @@ async function tryToGetAppointmentFromCalendar(secondDosisCalendar, page) {
 }
 
 async function setLocation(page, location) {
-    const locationDropdown = await page.$$(".vm-form-field")
-    const cityFormField = locationDropdown[5]
-    await cityFormField.click() //click to the form
+    try {
+        const locationDropdown = await page.$$(".vm-form-field")
+        const cityFormField = locationDropdown[5]
+        await cityFormField.click() //click to the form
 
-    await page.select("select[id='city_805ed1aadbc8f01099e4fde1f39619e8']", `string:${location}`)
+        await page.select("select[id='city_805ed1aadbc8f01099e4fde1f39619e8']", `string:${location}`)
 
-    const siteSelectOptions = await page.$$("select[id='preferred_center_805ed1aadbc8f01099e4fde1f39619e8'] option")
-    if(siteSelectOptions.length > 1) {  //the first option is -- None --
-        const firstSiteOption = await page.evaluate(option => option.value, siteSelectOptions[1])
-        await page.select("select[id='preferred_center_805ed1aadbc8f01099e4fde1f39619e8']", firstSiteOption)
-        return true
+        const siteSelectOptions = await page.$$("select[id='preferred_center_805ed1aadbc8f01099e4fde1f39619e8'] option")
+        if (siteSelectOptions.length > 1) {  //the first option is -- None --
+            const firstSiteOption = await page.evaluate(option => option.value, siteSelectOptions[1])
+            await page.select("select[id='preferred_center_805ed1aadbc8f01099e4fde1f39619e8']", firstSiteOption)
+            return true
+        }
+
+        return false
+    } catch (e) {
+        console.log(`Failed to check location ${location} ${e.message}`)
+        return false
     }
-
-    return false
 }
 
 async function findAtLocation(page, bookFrom, bookTo, location) {
@@ -106,39 +111,6 @@ async function findSecondDosisAppointment(page) {
             await submit(page)
             return true
         }
-        let secondPageButton = await secondDosisCalendar.$(
-            "button#goNext:not([disabled])"
-        )
-        secondPageButton =
-            secondPageButton ||
-            (await secondDosisCalendar.$(
-                "button#goPrevious:not([disabled])"
-            ))
-
-        if (secondPageButton) {
-            await secondPageButton.click()
-            secondDosis = await getFirstAvailableAppointment(page)
-            if (secondDosis) {
-                const secondButton = await getFirstAppointmentButton(
-                    secondDosisAppointmentContainer
-                )
-                await secondButton.click()
-                await submit(page)
-                return true
-            }
-            secondDosis = await tryToGetAppointmentFromCalendar(
-                secondDosisCalendar,
-                page
-            )
-            if (secondDosis) {
-                const secondButton = await getFirstAppointmentButton(
-                    secondDosisAppointmentContainer
-                )
-                await secondButton.click()
-                await submit(page)
-                return true
-            }
-        }
     }
 }
 
@@ -157,13 +129,11 @@ async function findAppointment(page, bookFrom, bookTo, location){
     const appointmentButton = await getFirstAppointmentButton(page)
     await appointmentButton.click()
 
-    await setLocation(page, location)
-
-    //check the same location for the second dosis first
-    let secondDosisBooked = await findSecondDosisAppointment(page);
-    if(secondDosisBooked){
-        return true
-    }
+    // if(await setLocation(page, location)) {
+    //     //check the same location for the second dosis first
+    //     return await findSecondDosisAppointment(page)
+    // }
+    return await findSecondDosisAppointment(page)
 }
 
 async function schedule(bookAfter, bookBefore, taskId, nswhvamCookiePath, location) {
@@ -171,8 +141,7 @@ async function schedule(bookAfter, bookBefore, taskId, nswhvamCookiePath, locati
         headless: false,
         ignoreDefaultArgs: ["--mute-audio"],
         args: ["--autoplay-policy=no-user-gesture-required"],
-        defaultViewport: null,
-        slowMo: 200,
+        defaultViewport: null
     })
     const rescheduleUrl = `https://nswhvam.health.nsw.gov.au/vam?id=reschedule_vaccination&taskId=${taskId}`
 
@@ -188,16 +157,16 @@ async function schedule(bookAfter, bookBefore, taskId, nswhvamCookiePath, locati
     do {
         try {
             appointmentFound = await findAtLocation(page, bookAfterDate, bookBeforeDate, location)
-            await sleep(5000)
+            await sleep(2000)
             await page.reload()
         } catch (e) {
             if (e instanceof puppeteer.errors.TimeoutError) {
-                await sleep(30 * 60 * 1000)
+                await sleep(10000)
             } else {
                 throw e
             }
         }
-    } while (!appointmentFound)
+    } while (appointmentFound !== true)
 
     await sleep(30000)
     await browser.close()
