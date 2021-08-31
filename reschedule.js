@@ -58,16 +58,18 @@ async function tryToGetAppointmentFromCalendar(secondDoseCalendar, page) {
 
 async function selectLocationAndSite(page, location) {
     try{
+        await sleep(100)
         const locationDropdown = await page.$$(".vm-form-field")
         const cityFormField = locationDropdown[1]
 
         await cityFormField.click() //click to the form
+        await sleep(300)   //takes a bit time till the selects render
 
         await page.select("select[id='city_c44edd6adbc8f01099e4fde1f39619d1'", `string:${location}`)
 
         const siteSelectOptions = await page.$$("select[id='preferred_center_c44edd6adbc8f01099e4fde1f39619d1'] option")
         if(siteSelectOptions.length > 1) {  //the first option is -- None --
-            const firstSiteOption = await page.evaluate(option => option.value, siteSelectOptions[1])
+            const firstSiteOption = await page.evaluate(option => option.value, siteSelectOptions[3])
             await page.select("select[id='preferred_center_c44edd6adbc8f01099e4fde1f39619d1']", firstSiteOption)
             return true
         }
@@ -85,17 +87,18 @@ async function selectLocationAndSite(page, location) {
 
 async function selectSecondDoseLocationAndSite(page, location) {
     try{
+        await sleep(100)
         const locationDropdown = await page.$$(".vm-form-field")
         const cityFormField = locationDropdown[5]
 
         await cityFormField.click() //click to the form
-        await sleep(200)   //takes a bit time till the selects render
+        await sleep(300)   //takes a bit time till the selects render
 
         await page.select("select[id='city_805ed1aadbc8f01099e4fde1f39619e8']", `string:${location}`)
 
         const siteSelectOptions = await page.$$("select[id='preferred_center_805ed1aadbc8f01099e4fde1f39619e8'] option")
         if(siteSelectOptions.length > 1) {  //the first option is -- None --
-            const firstSiteOption = await page.evaluate(option => option.value, siteSelectOptions[1])
+            const firstSiteOption = await page.evaluate(option => option.value, siteSelectOptions[3])
             await page.select("select[id='preferred_center_805ed1aadbc8f01099e4fde1f39619e8']", firstSiteOption)
             return true
         }
@@ -202,6 +205,7 @@ async function findAppointment(page, bookFrom, bookTo, preferredLocation, locati
             }
         }
     }
+    return false
 }
 
 async function schedule(bookAfter, bookBefore, taskId, nswhvamCookiePath, locations) {
@@ -210,7 +214,7 @@ async function schedule(bookAfter, bookBefore, taskId, nswhvamCookiePath, locati
         ignoreDefaultArgs: ["--mute-audio"],
         args: ["--autoplay-policy=no-user-gesture-required"],
         defaultViewport: null,
-        slowMo: 200,
+        slowMo: 180,
     })
     const rescheduleUrl = `https://nswhvam.health.nsw.gov.au/vam?id=reschedule_vaccination&taskId=${taskId}`
 
@@ -226,7 +230,7 @@ async function schedule(bookAfter, bookBefore, taskId, nswhvamCookiePath, locati
     do {
         try {
             appointmentFound = await searchAllLocations(page, bookAfterDate, bookBeforeDate, locations)
-            await sleep(500)
+            await sleep(5000)
             await page.reload()
         } catch (e) {
             if (e instanceof puppeteer.errors.TimeoutError) {
@@ -236,17 +240,16 @@ async function schedule(bookAfter, bookBefore, taskId, nswhvamCookiePath, locati
                 throw e
             }
         }
-    } while (!appointmentFound)
+    } while (appointmentFound !== true)
 
     await sleep(30000)
     await browser.close()
 }
 
-const availableCloseLocations = ['Sydney Olympic Park', 'Macquarie Fields']
+const availableCloseLocations = ['Sydney Olympic Park']
 const closeLocations = ['Randwick', 'Darlinghurst', 'Sydney Olympic Park']
 const allSydneyLocations = ['Randwick', 'Darlinghurst', 'Sydney Olympic Park', 'Macquarie Fields', 'Westmead', 'Penrith', 'Prairiewood', 'South Western Sydney', 'Western Sydney']
 
-schedule('Aug 30 2021', 'Sep 14 2021', 'b8e6f0011b1e3810a74ccbb9274bcb19', './nswhvam.health.nsw.gov.au.cookies.json',
+schedule('Sep 6 2021', 'Oct 1 2021', 'cc6bf4451b9e3810a74ccbb9274bcb74', './nswhvam.health.nsw.gov.au.cookies.json',
     availableCloseLocations
 )
-// schedule('Aug 31 2021', 'Sep 30 2021', 'cc6bf4451b9e3810a74ccbb9274bcb74', './nswhvam.health.nsw.gov.au.cookies-liz.json')
